@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Строительный Калькулятор</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e67e22;
+            --light: #ecf0f1;
+            --dark: #34495e;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        /* Tabs Navigation */
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            background-color: var(--dark);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: none;
+            color: #bdc3c7;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+            min-width: 120px;
+        }
+        .tab-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+        }
+        .tab-btn.active {
+            background-color: white;
+            color: var(--primary);
+            font-weight: bold;
+            border-bottom: 3px solid var(--accent);
+        }
+        /* Content Areas */
+        .content {
+            padding: 30px;
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        .content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        h2 { color: var(--primary); border-bottom: 2px solid var(--light); padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button.calc-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button.calc-btn:hover { background-color: #d35400; }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--light);
+            border-radius: 4px;
+            border-left: 5px solid var(--accent);
+            display: none;
+        }
+        .result strong { color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>👷 Строительный Помощник</h1>
+    <p>Онлайн калькулятор материалов</p>
+</header>
+
+<div class="container">
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab('brick')">🧱 Кирпич</button>
+        <button class="tab-btn" onclick="openTab('concrete')">🏗️ Бетон</button>
+        <button class="tab-btn" onclick="openTab('room')">📏 Помещение</button>
+        <button class="tab-btn" onclick="openTab('tile')">🟫 Плитка</button>
+        <button class="tab-btn" onclick="openTab('rebar')">🔩 Арматура</button>
+    </div>
+
+    <!-- Tab 1: Brick -->
+    <div id="brick" class="content active">
+        <h2>Расчет кирпича</h2>
+        <div class="form-group">
+            <label>Длина стены (м):</label>
+            <input type="number" id="brick-length" placeholder="Например: 5">
+        </div>
+        <div class="form-group">
+            <label>Высота стены (м):</label>
+            <input type="number" id="brick-height" placeholder="Например: 3">
+        </div>
+        <div class="form-group">
+            <label>Толщина кладки:</label>
+            <select id="brick-thickness" style="width:100%; padding:10px;">
+                <option value="120">Полкирпича (12 см)</option>
+                <option value="250">Один кирпич (25 см)</option>
+                <option value="380">Полтора кирпича (38 см)</option>
+                <option value="510">Два кирпича (51 см)</option>
+            </select>
+        </div>
+        <button class="calc-btn" onclick="calcBrick()">Рассчитать</button>
+        <div id="res-brick" class="result"></div>
+    </div>
+
+    <!-- Tab 2: Concrete -->
+    <div id="concrete" class="content">
+        <h2>Расчет бетона (Фундамент)</h2>
+        <div class="form-group">
+            <label>Длина ленты (м):</label>
+            <input type="number" id="conc-length" placeholder="Общая длина">
+        </div>
+        <div class="form-group">
+            <label>Ширина ленты (м):</label>
+            <input type="number" id="conc-width" placeholder="Например: 0.4">
+        </div>
+        <div class="form-group">
+            <label>Высота ленты (м):</label>
+            <input type="number" id="conc-height" placeholder="Например: 0.5">
+        </div>
+        <button class="calc-btn" onclick="calcConcrete()">Рассчитать объем</button>
+        <div id="res-conc" class="result"></div>
+    </div>
+
+    <!-- Tab 3: Room -->
+    <div id="room" class="content">
+        <h2>Параметры помещения</h2>
+        <div class="form-group">
+            <label>Длина комнаты (м):</label>
+            <input type="number" id="room-length">
+        </div>
+        <div class="form-group">
+            <label>Ширина комнаты (м):</label>
+            <input type="number" id="room-width">
+        </div>
+        <div class="form-group">
+            <label>Высота потолка (м):</label>
+            <input type="number" id="room-height">
+        </div>
+        <button class="calc-btn" onclick="calcRoom()">Рассчитать площади</button>
+        <div id="res-room" class="result"></div>
+    </div>
+
+    <!-- Tab 4: Tile -->
+    <div id="tile" class="content">
+        <h2>Расчет плитки</h2>
+        <div class="form-group">
+            <label>Площадь укладки (м²):</label>
+            <input type="number" id="tile-area">
+        </div>
+        <div class="form-group">
+            <label>Размер плитки (см):</label>
+            <div style="display:flex; gap:10px;">
+                <input type="number" id="tile-w" placeholder="Ширина">
+                <input type="number" id="tile-h" placeholder="Высота">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Запас на подрезку (%):</label>
+            <input type="number" id="tile-waste" value="10">
+        </div>
+        <button class="calc-btn" onclick="calcTile()">Рассчитать количество</button>
+        <div id="res-tile" class="result"></div>
+    </div>
+
+    <!-- Tab 5: Rebar -->
+    <div id="rebar" class="content">
+        <h2>Арматура (Перевод)</h2>
+        <div class="form-group">
+            <label>Диаметр арматуры (мм):</label>
+            <select id="rebar-diam" style="width:100%; padding:10px;">
+                <option value="6">6 мм</option>
+                <option value="8">8 мм</option>
+                <option value="10">10 мм</option>
+                <option value="12">12 мм</option>
+                <option value="14">14 мм</option>
+                <option value="16">16 мм</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Длина (метров):</label>
+            <input type="number" id="rebar-len" placeholder="Введите длину">
+        </div>
+        <button class="calc-btn" onclick="calcRebar()">Перевести в вес (кг)</button>
+        <div id="res-rebar" class="result"></div>
+    </div>
+</div>
+
+<script>
+    // Tab Logic
+    function openTab(tabName) {
+        let i;
+        let x = document.getElementsByClassName("content");
+        let tabs = document.getElementsByClassName("tab-btn");
+        
+        for (i = 0; i < x.length; i++) {
+            x[i].style.display = "none";
+            x[i].classList.remove("active");
+        }
+        for (i = 0; i < tabs.length; i++) {
+            tabs[i].classList.remove("active");
+        }
+        
+        document.getElementById(tabName).style.display = "block";
+        document.getElementById(tabName).classList.add("active");
+        
+        // Find button that calls this function and make active (simple hack)
+        event.currentTarget.classList.add("active");
+    }
+
+    // Helper to show result
+    function showResult(id, html) {
+        const el = document.getElementById(id);
+        el.innerHTML = html;
+        el.style.display = "block";
+    }
+
+    // Calculators
+    function calcBrick() {
+        const L = parseFloat(document.getElementById('brick-length').value);
+        const H = parseFloat(document.getElementById('brick-height').value);
+        const T = parseFloat(document.getElementById('brick-thickness').value);
+        
+        if(!L || !H) return alert("Введите размеры стены");
+
+        const area = L * H;
+        // Approximate bricks per m2 based on thickness
+        let rate = 0;
+        if(T === 120) rate = 51;
+        else if(T === 250) rate = 102;
+        else if(T === 380) rate = 153;
+        else if(T === 510) rate = 204;
+
+        const count = Math.ceil(area * rate);
+        const mortar = (area * T / 1000) * 0.25; // Approx mortar volume
+
+        showResult('res-brick', 
+            `<strong>Площадь стен:</strong> ${area.toFixed(2)} м²<br>` +
+            `<strong>Кирпичей нужно:</strong> ~${count} шт.<br>` +
+            `<strong>Раствора (примерно):</strong> ${mortar.toFixed(2)} м³`
+        );
+    }
+
+    function calcConcrete() {
+        const L = parseFloat(document.getElementById('conc-length').value);
+        const W = parseFloat(document.getElementById('conc-width').value);
+        const H = parseFloat(document.getElementById('conc-height').value);
+
+        if(!L || !W || !H) return alert("Заполните все поля");
+
+        const vol = L * W * H;
+        showResult('res-conc', 
+            `<strong>Объем бетона:</strong> ${vol.toFixed(2)} м³<br>` +
+            `<small>Рекомендуем заказать с запасом 5-10%</small>`
+        );
+    }
+
+    function calcRoom() {
+        const L = parseFloat(document.getElementById('room-length').value);
+        const W = parseFloat(document.getElementById('room-width').value);
+        const H = parseFloat(document.getElementById('room-height').value);
+
+        if(!L || !W || !H) return alert("Заполните все поля");
+
+        const floorArea = L * W;
+        const wallArea = (L + W) * 2 * H;
+
+        showResult('res-room', 
+            `<strong>Площадь пола/потолка:</strong> ${floorArea.toFixed(2)} м²<br>` +
+            `<strong>Площадь стен (без вычета окон):</strong> ${wallArea.toFixed(2)} м²`
+        );
+    }
+
+    function calcTile() {
+        const area = parseFloat(document.getElementById('tile-area').value);
+        const w = parseFloat(document.getElementById('tile-w').value) / 100; // cm to m
+        const h = parseFloat(document.getElementById('tile-h').value) / 100;
+        const waste = parseFloat(document.getElementById('tile-waste').value) || 0;
+
+        if(!area || !w || !h) return alert("Проверьте данные");
+
+        const tileArea = w * h;
+        const pureCount = area / tileArea;
+        const totalCount = Math.ceil(pureCount * (1 + waste/100));
+
+        showResult('res-tile', 
+            `<strong>Площадь одной плитки:</strong> ${(tileArea).toFixed(3)} м²<br>` +
+            `<strong>Нужно плиток (с запасом):</strong> ${totalCount} шт.`
+        );
+    }
+
+    function calcRebar() {
+        const diam = parseFloat(document.getElementById('rebar-diam').value);
+        const len = parseFloat(document.getElementById('rebar-len').value);
+        
+        if(!len) return alert("Введите длину");
+
+        // Weight formula: (D^2 * L) / 162 approx for kg/m, or density * volume
+        // Density steel = 7850 kg/m3. Volume = pi * r^2 * L
+        const radius = (diam / 1000) / 2;
+        const volume = Math.PI * Math.pow(radius, 2) * len;
+        const weight = volume * 7850;
+
+        showResult('res-rebar', 
+            `<strong>Вес арматуры:</strong> ${weight.toFixed(2)} кг`
+        );
+    }
+</script>
+
+</body>
+</html>

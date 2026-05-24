@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ОКС Эксперт - Система управления объектами</title>
+    <script src="https://api-maps.yandex.ru/3.0/?apikey=your_api_key&lang=ru_RU"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --warning: #ca8a04;
+            --danger: #dc2626;
+            --info: #0891b2;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.5;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+            position: absolute;
+        }
+        
+        .logo {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .logo p {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            margin-top: 0.25rem;
+        }
+        
+        .nav-menu {
+            flex: 1;
+            padding: 1rem 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: var(--gray-700);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            background: var(--gray-100);
+            color: var(--primary);
+        }
+        
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+            margin-right: 0.75rem;
+        }
+        
+        .user-info {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            background: var(--gray-50);
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+        
+        .user-role {
+            font-size: 0.75rem;
+            color: var(--gray-600);
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+        
+        .menu-toggle:hover {
+            background: var(--gray-100);
+        }
+        
+        .page-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+        
+        .btn-outline {
+            background: white;
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+        
+        .btn-outline:hover {
+            background: var(--gray-50);
+        }
+        
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        
+        /* Dashboard Widgets */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .widget {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .widget-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-600);
+        }
+        
+        .widget-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        
+        .widget-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .text-warning { color: var(--warning); }
+        
+        /* Map Container */
+        .map-container {
+            height: calc(100vh - 200px);
+            background: var(--gray-100);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+        
+        .map-control-btn {
+            background: white;
+            border: 1px solid var(--gray-300);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .map-control-btn:hover {
+            background: var(--gray-50);
+        }
+        
+        /* Object Cards */
+        .objects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .object-card {
+            background: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        
+        .object-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .object-image {
+            height: 160px;
+            background: var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-600);
+        }
+        
+        .object-content {
+            padding: 1rem;
+        }
+        
+        .object-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        
+        .status-construction { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #dcfce7; color: #166534; }
+        .status-warranty { background: #fef3c7; color: #92400e; }
+        .status-operation { background: #e0f2fe; color: #075985; }
+        .status-emergency { background: #fee2e2; color: #991b1b; }
+        
+        .object-name {
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-bottom: 0.5rem;
+        }
+        
+        .object-meta {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        
+        tr:hover {
+            background: var(--gray-50);
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 0.5rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-600);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .objects-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Hidden views */
+        .view-section {
+            display: none;
+        }
+        
+        .view-section.active {
+            display: block;
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--gray-600);
+        }
+        
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                <h1>🏗️ ОКС Эксперт</h1>
+                <p>Управление объектами</p>
+            </div>
+            
+            <nav class="nav-menu">
+                <a class="nav-item active" data-view="dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    Дашборд
+                </a>
+                <a class="nav-item" data-view="map">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
+                    </svg>
+                    Карта объектов
+                </a>
+                <a class="nav-item" data-view="objects">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Объекты
+                </a>
+                <a class="nav-item" data-view="reports">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    Полевые отчёты
+                </a>
+                <a class="nav-item" data-view="tasks">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    Задачи
+                </a>
+            </nav>
+            
+            <div class="user-info">
+                <div class="user-name">Инженер ОКС</div>
+                <div class="user-role">Московский регион</div>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+                        </svg>
+                    </button>
+                    <h1 class="page-title" id="pageTitle">Панель мониторинга</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="showNotification('Обновлено!', 'success')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Обновить
+                    </button>
+                    <button class="btn btn-primary" onclick="openModal('reportModal')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Новый отчёт
+                    </button>
+                </div>
+            </header>
+            
+            <div class="content-area">
+                <!-- Dashboard View -->
+                <div id="dashboard" class="view-section active">
+                    <div class="dashboard-grid">
+                        <div class="widget">
+                            <div class="widget-header">
+                                <span class="widget-title">Всего объектов</span>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                </svg>
+                            </div>
+                            <div class="widget-value">24</div>
+                            <div class="widget-change text-success">+3 за месяц</div>
+                        </div>
+                        
+                        <div class="widget">
+                            <div class="widget-header">
+                                <span class="widget-title">Открытые дефекты</span>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                                </svg>
+                            </div>
+                            <div class="widget-value">12</div>
+                            <div class="widget-change text-danger">2 критических</div>
+                        </div>
+                        
+                        <div class="widget">
+                            <div class="widget-header">
+                                <span class="widget-title">Задачи в работе</span>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2">
+                                    <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                                </svg>
+                            </div>
+                            <div class="widget-value">8</div>
+                            <div class="widget-change text-warning">3 просрочено</div>
+                        </div>
+                        
+                        <div class="widget">
+                            <div class="widget-header">
+                                <span class="widget-title">Гарантии истекают</span>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                            </div>
+                            <div class="widget-value">5</div>
+                            <div class="widget-change">в ближайшие 30 дней</div>
+                        </div>
+                    </div>
+                    
+                    <h2 style="margin-bottom: 1rem; font-size: 1.25rem;">Карта объектов Москвы и МО</h2>
+                    <div class="map-container">
+                        <div id="map"></div>
+                        <div class="map-controls">
+                            <button class="map-control-btn" title="Фильтр">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                                </svg>
+                            </button>
+                            <button class="map-control-btn" title="Слои">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Map View -->
+                <div id="map" class="view-section">
+                    <div class="map-container" style="height: calc(100vh - 140px);">
+                        <div id="fullMap"></div>
+                    </div>
+                </div>
+                
+                <!-- Objects View -->
+                <div id="objects" class="view-section">
+                    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <input type="text" class="form-input" placeholder="Поиск объекта..." style="max-width: 300px;">
+                        <select class="form-select" style="max-width: 200px;">
+                            <option value="">Все статусы</option>
+                            <option value="construction">Строится</option>
+                            <option value="completed">Сдан</option>
+                            <option value="warranty">На гарантии</option>
+                            <option value="operation">Эксплуатация</option>
+                            <option value="emergency">Аварийный</option>
+                        </select>
+                    </div>
+                    
+                    <div class="objects-grid">
+                        <div class="object-card">
+                            <div class="object-image">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                </svg>
+                            </div>
+                            <div class="object-content">
+                                <span class="object-status status-construction">Строится</span>
+                                <h3 class="object-name">ЖК "Северное сияние"</h3>
+                                <div class="object-meta">
+                                    <div>📍 Москва, ул. Ленина 45</div>
+                                    <div>👷 Подрядчик: ООО "СтройМастер"</div>
+                                    <div>📅 Сдача: Q2 2025</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="object-card">
+                            <div class="object-image">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                </svg>
+                            </div>
+                            <div class="object-content">
+                                <span class="object-status status-warranty">На гарантии</span>
+                                <h3 class="object-name">ТЦ "Подмосковье"</h3>
+                                <div class="object-meta">
+                                    <div>📍 Химки, проспект Мира 12</div>
+                                    <div>👷 Подрядчик: ЗАО "Монолит"</div>
+                                    <div>📅 Сдан: Декабрь 2024</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="object-card">
+                            <div class="object-image">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                </svg>
+                            </div>
+                            <div class="object-content">
+                                <span class="object-status status-operation">Эксплуатация</span>
+                                <h3 class="object-name">БЦ "Кремлин Тауэр"</h3>
+                                <div class="object-meta">
+                                    <div>📍 Москва, Сити, Башня А</div>
+                                    <div>👷 Управляющая: ГК "Сервис"</div>
+                                    <div>📅 Сдан: Март 2023</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="object-card">
+                            <div class="object-image">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                </svg>
+                            </div>
+                            <div class="object-content">
+                                <span class="object-status status-emergency">Аварийный</span>
+                                <h3 class="object-name">Складской комплекс №7</h3>
+                                <div class="object-meta">
+                                    <div>📍 Подольск, инд. зона 3</div>
+                                    <div>👷 Требуется ремонт кровли</div>
+                                    <div>📅 Обнаружено: Вчера</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Reports View -->
+                <div id="reports" class="view-section">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Объект</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Автор</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>15.01.2025</td>
+                                    <td>ЖК "Северное сияние"</td>
+                                    <td>Фотофиксация</td>
+                                    <td><span class="object-status status-completed">Готов</span></td>
+                                    <td>Иванов А.</td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding: 0.25rem 0.5rem;">📄</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>14.01.2025</td>
+                                    <td>ТЦ "Подмосковье"</td>
+                                    <td>Дефектовка</td>
+                                    <td><span class="object-status status-warranty">В работе</span></td>
+                                    <td>Петров С.</td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding: 0.25rem 0.5rem;">📄</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>13.01.2025</td>
+                                    <td>БЦ "Кремлин Тауэр"</td>
+                                    <td>Плановое ТО</td>
+                                    <td><span class="object-status status-completed">Готов</span></td>
+                                    <td>Сидоров В.</td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding: 0.25rem 0.5rem;">📄</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Tasks View -->
+                <div id="tasks" class="view-section">
+                    <div class="dashboard-grid" style="margin-bottom: 1.5rem;">
+                        <div class="widget">
+                            <div class="widget-value text-success">15</div>
+                            <div class="widget-title">Выполнено</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-value text-warning">8</div>
+                            <div class="widget-title">В работе</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-value text-danger">3</div>
+                            <div class="widget-title">Просрочено</div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Задача</th>
+                                    <th>Объект</th>
+                                    <th>Приоритет</th>
+                                    <th>Срок</th>
+                                    <th>Ответственный</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Устранение протечки кровли</td>
+                                    <td>Складской комплекс №7</td>
+                                    <td><span class="text-danger">Высокий</span></td>
+                                    <td>16.01.2025</td>
+                                    <td>ООО "РемСтрой"</td>
+                                    <td><span class="object-status status-warranty">В работе</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Замена освещения парковки</td>
+                                    <td>ТЦ "Подмосковье"</td>
+                                    <td><span class="text-warning">Средний</span></td>
+                                    <td>20.01.2025</td>
+                                    <td>ЗАО "ЭлектроМонтаж"</td>
+                                    <td><span class="object-status status-operation">Новая</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Проверка системы вентиляции</td>
+                                    <td>БЦ "Кремлин Тауэр"</td>
+                                    <td><span class="text-success">Низкий</span></td>
+                                    <td>25.01.2025</td>
+                                    <td>ГК "Сервис"</td>
+                                    <td><span class="object-status status-completed">Запланировано</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Report Modal -->
+    <div id="reportModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Новый полевой отчёт</h2>
+                <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Объект *</label>
+                    <select class="form-select">
+                        <option value="">Выберите объект</option>
+                        <option value="1">ЖК "Северное сияние"</option>
+                        <option value="2">ТЦ "Подмосковье"</option>
+                        <option value="3">БЦ "Кремлин Тауэр"</option>
+                        <option value="4">Складской комплекс №7</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Тип отчёта *</label>
+                    <select class="form-select">
+                        <option value="">Выберите тип</option>
+                        <option value="photo">Фотофиксация</option>
+                        <option value="defect">Дефектовка</option>
+                        <option value="inspection">Акт осмотра</option>
+                        <option value="maintenance">Плановое ТО</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-textarea" placeholder="Опишите обнаруженные проблемы или выполненные работы..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Координаты</label>
+                    <div style="background: var(--gray-100); padding: 1rem; border-radius: 0.375rem; text-align: center; color: var(--gray-600);">
+                        📍 Нажмите для выбора точки на карте
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Фото/Видео</label>
+                    <div style="border: 2px dashed var(--gray-300); border-radius: 0.375rem; padding: 2rem; text-align: center; color: var(--gray-600);">
+                        📷 Перетащите файлы или нажмите для загрузки
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('reportModal')">Отмена</button>
+                <button class="btn btn-primary" onclick="saveReport()">Сохранить отчёт</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Данные объектов с координатами
+        const objects = [
+            { id: 1, name: 'ЖК "Северное сияние"', lat: 55.796127, lon: 37.615555, status: 'construction', address: 'Москва, ул. Ленина 45' },
+            { id: 2, name: 'ТЦ "Подмосковье"', lat: 55.893654, lon: 37.429876, status: 'warranty', address: 'Химки, проспект Мира 12' },
+            { id: 3, name: 'БЦ "Кремлин Тауэр"', lat: 55.748989, lon: 37.539876, status: 'operation', address: 'Москва, Сити, Башня А' },
+            { id: 4, name: 'Складской комплекс №7', lat: 55.429876, lon: 37.549876, status: 'emergency', address: 'Подольск, инд. зона 3' },
+            { id: 5, name: 'ЖК "Зелёный квартал"', lat: 55.836543, lon: 37.498765, status: 'completed', address: 'Долгопрудный, мкр. Центральный' },
+            { id: 6, name: 'Логистический центр "Восток"', lat: 55.765432, lon: 37.876543, status: 'construction', address: 'Балашиха, ш. Энтузиастов' },
+            { id: 7, name: 'Офисный парк "Новатор"', lat: 55.712345, lon: 37.587654, status: 'operation', address: 'Москва, Ленинский проспект' },
+            { id: 8, name: 'Торговый дом "Южный"', lat: 55.543210, lon: 37.654321, status: 'warranty', address: 'Домодедово, Каширское шоссе' }
+        ];
+        
+        let map, fullMap;
+        let sidebarOpen = true;
+        
+        // Инициализация приложения
+        document.addEventListener('DOMContentLoaded', function() {
+            initNavigation();
+            initMap();
+            initFullMap();
+        });
+        
+        // Навигация
+        function initNavigation() {
+            const navItems = document.querySelectorAll('.nav-item');
+            const menuToggle = document.getElementById('menuToggle');
+            const sidebar = document.getElementById('sidebar');
+            
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const viewId = this.getAttribute('data-view');
+                    
+                    // Update active nav item
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show corresponding view
+                    document.querySelectorAll('.view-section').forEach(section => {
+                        section.classList.remove('active');
+                    });
+                    document.getElementById(viewId).classList.add('active');
+                    
+                    // Update page title
+                    const titles = {
+                        'dashboard': 'Панель мониторинга',
+                        'map': 'Карта объектов',
+                        'objects': 'Объекты',
+                        'reports': 'Полевые отчёты',
+                        'tasks': 'Задачи'
+                    };
+                    document.getElementById('pageTitle').textContent = titles[viewId];
+                    
+                    // Close sidebar on mobile
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('open');
+                    }
+                    
+                    // Resize map if map view is activated
+                    if (viewId === 'map' && fullMap) {
+                        setTimeout(() => {
+                            fullMap.updateSize();
+                        }, 100);
+                    }
+                });
+            });
+            
+            menuToggle.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.toggle('open');
+                } else {
+                    sidebar.classList.toggle('collapsed');
+                    sidebarOpen = !sidebarOpen;
+                }
+            });
+        }
+        
+        // Инициализация основной карты
+        function initMap() {
+            ymaps3.ready.then(function() {
+                const {YMap} = ymaps3;
+                
+                map = new YMap(document.getElementById('map'), {
+                    location: {
+                        center: [37.6176, 55.7558],
+                        zoom: 10
+                    }
+                });
+                
+                // Добавляем слои
+                map.addChild(new ymaps3.YMapLayerScheme({scheme: 'yandex#map'}));
+                
+                // Добавляем маркеры объектов
+                objects.forEach(obj => {
+                    const marker = createMarker(obj);
+                    map.addChild(marker);
+                });
+            });
+        }
+        
+        // Инициализация полной карты
+        function initFullMap() {
+            ymaps3.ready.then(function() {
+                const {YMap} = ymaps3;
+                
+                fullMap = new YMap(document.getElementById('fullMap'), {
+                    location: {
+                        center: [37.6176, 55.7558],
+                        zoom: 9
+                    }
+                });
+                
+                fullMap.addChild(new ymaps3.YMapLayerScheme({scheme: 'yandex#map'}));
+                
+                objects.forEach(obj => {
+                    const marker = createMarker(obj);
+                    fullMap.addChild(marker);
+                });
+            });
+        }
+        
+        // Создание маркера
+        function createMarker(obj) {
+            const colors = {
+                construction: '#2563eb',
+                completed: '#16a34a',
+                warranty: '#ca8a04',
+                operation: '#0891b2',
+                emergency: '#dc2626'
+            };
+            
+            return new ymaps3.YMapMarker({
+                coordinates: [obj.lon, obj.lat]
+            }, function() {
+                const element = document.createElement('div');
+                element.innerHTML = `
+                    <div style="
+                        width: 24px;
+                        height: 24px;
+                        background: ${colors[obj.status]};
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        cursor: pointer;
+                    "></div>
+                `;
+                
+                element.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    showObjectPopup(obj, element);
+                });
+                
+                return element;
+            });
+        }
+        
+        // Показать попап объекта
+        function showObjectPopup(obj, element) {
+            const statuses = {
+                construction: 'Строится',
+                completed: 'Сдан',
+                warranty: 'На гарантии',
+                operation: 'Эксплуатация',
+                emergency: 'Аварийный'
+            };
+            
+            const popup = document.createElement('div');
+            popup.style.cssText = `
+                position: absolute;
+                background: white;
+                padding: 1rem;
+                border-radius: 0.5rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 1000;
+                min-width: 250px;
+                top: 30px;
+                left: 0;
+            `;
+            
+            popup.innerHTML = `
+                <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">${obj.name}</h3>
+                <span class="object-status status-${obj.status}" style="margin-bottom: 0.5rem;">${statuses[obj.status]}</span>
+                <div style="font-size: 0.875rem; color: #6b7280;">
+                    <div style="margin-bottom: 0.25rem;">📍 ${obj.address}</div>
+                    <div>📊 Координаты: ${obj.lat.toFixed(4)}, ${obj.lon.toFixed(4)}</div>
+                </div>
+                <button class="btn btn-primary" style="margin-top: 0.75rem; width: 100%;" onclick="openObjectDetail(${obj.id})">
+                    Подробнее
+                </button>
+            `;
+            
+            element.style.position = 'relative';
+            element.appendChild(popup);
+            
+            // Закрыть при клике вне
+            document.addEventListener('click', function closePopup(e) {
+                if (!element.contains(e.target)) {
+                    popup.remove();
+                    document.removeEventListener('click', closePopup);
+                }
+            });
+        }
+        
+        // Модальные окна
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // Сохранение отчёта
+        function saveReport() {
+            showNotification('Отчёт успешно сохранён!', 'success');
+            closeModal('reportModal');
+        }
+        
+        // Детали объекта
+        function openObjectDetail(id) {
+            const obj = objects.find(o => o.id === id);
+            if (obj) {
+                showNotification(`Открыт объект: ${obj.name}`, 'info');
+                // Здесь можно открыть детальную страницу
+            }
+        }
+        
+        // Уведомления
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.borderLeft = `4px solid ${type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#2563eb'}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Закрытие модальных окон по ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay').forEach(modal => {
+                    modal.style.display = 'none';
+                });
+            }
+        });
+        
+        // Закрытие модальных окон по клику вне
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

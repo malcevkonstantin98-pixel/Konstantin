@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Система управления объектами капитального строительства и эксплуатации" />
+    <meta name="theme-color" content="#1a56db" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>ОКС Эксперт - Система управления объектами</title>
+    
+    <!-- Yandex Maps API v3 -->
+    <script src="https://api-maps.yandex.ru/v3/?apikey=your-yandex-maps-api-key&lang=ru_RU"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+    
+    <!-- Offline detection -->
+    <script>
+      window.addEventListener('offline', () => {
+        document.body.classList.add('offline');
+        console.log('Приложение работает в офлайн-режиме');
+      });
+      
+      window.addEventListener('online', () => {
+        document.body.classList.remove('offline');
+        console.log('Приложение подключено к сети');
+      });
+    </script>
+  </body>
+</html>

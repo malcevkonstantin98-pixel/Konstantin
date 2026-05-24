@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: oks_postgres
+    environment:
+      POSTGRES_USER: oks_user
+      POSTGRES_PASSWORD: oks_password
+      POSTGRES_DB: oks_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - oks_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oks_user -d oks_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: oks_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - oks_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: oks_backend
+    environment:
+      DATABASE_URL: postgresql://oks_user:oks_password@postgres:5432/oks_db
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: oks-files
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - oks_network
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: oks_frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_YANDEX_MAPS_API_KEY: your-yandex-maps-api-key
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - oks_network
+
+volumes:
+  postgres_data:
+
+networks:
+  oks_network:
+    driver: bridge

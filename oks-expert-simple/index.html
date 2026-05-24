@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ОКС Эксперт - Система управления объектами</title>
+    
+    <!-- Yandex Maps API -->
+    <script src="https://api-maps.yandex.ru/3.0/?apikey=your_api_key&lang=ru_RU" type="text/javascript"></script>
+    
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+        
+        .map-container {
+            height: calc(100vh - 80px);
+            width: 100%;
+        }
+        
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 80px;
+            bottom: 0;
+            width: 350px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar.collapsed {
+            transform: translateX(-350px);
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-construction { background: #fef3c7; color: #92400e; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-warranty { background: #dbeafe; color: #1e40af; }
+        .status-operation { background: #e0e7ff; color: #3730a3; }
+        .status-emergency { background: #fee2e2; color: #991b1b; }
+        
+        .object-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .object-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .dashboard-widget {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: fixed;
+                bottom: 0;
+                top: auto;
+                height: 60vh;
+                transform: translateY(100%);
+            }
+            
+            .sidebar.active {
+                transform: translateY(0);
+            }
+            
+            .sidebar.collapsed {
+                transform: translateY(100%);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="bg-blue-800 text-white p-4 shadow-lg fixed w-full top-0 z-50">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-building text-2xl"></i>
+                    <h1 class="text-xl font-bold">ОКС Эксперт</h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button @click="toggleSidebar" class="lg:hidden bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    <div class="hidden lg:flex items-center space-x-2">
+                        <i class="fas fa-user-circle text-2xl"></i>
+                        <span>{{ currentUser.name }}</span>
+                        <select v-model="currentRoleId" @change="switchRole" class="bg-blue-700 text-white px-3 py-1 rounded">
+                            <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Sidebar -->
+        <aside :class="['sidebar', sidebarCollapsed ? 'collapsed' : '', mobileSidebarActive ? 'active' : '']">
+            <div class="p-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">Объекты</h2>
+                    <button @click="toggleSidebar" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Filters -->
+                <div class="mb-4 space-y-2">
+                    <select v-model="filters.status" class="w-full p-2 border rounded">
+                        <option value="">Все статусы</option>
+                        <option value="construction">Строится</option>
+                        <option value="completed">Сдан</option>
+                        <option value="warranty">На гарантии</option>
+                        <option value="operation">Эксплуатация</option>
+                        <option value="emergency">Аварийный</option>
+                    </select>
+                    
+                    <select v-model="filters.type" class="w-full p-2 border rounded">
+                        <option value="">Все типы</option>
+                        <option value="residential">Жилой комплекс</option>
+                        <option value="commercial">Торговый центр</option>
+                        <option value="industrial">Промышленный объект</option>
+                        <option value="infrastructure">Инфраструктура</option>
+                    </select>
+                </div>
+                
+                <!-- Object List -->
+                <div class="space-y-3">
+                    <div v-for="obj in filteredObjects" :key="obj.id" 
+                         @click="selectObject(obj)"
+                         class="object-card p-3 border rounded-lg hover:bg-blue-50">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-semibold text-gray-800">{{ obj.name }}</h3>
+                            <span :class="['status-badge', getStatusClass(obj.status)]">
+                                {{ getStatusText(obj.status) }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-1">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            {{ obj.address }}
+                        </p>
+                        <div class="flex justify-between text-xs text-gray-500">
+                            <span><i class="fas fa-calendar mr-1"></i>{{ obj.completionDate }}</span>
+                            <span><i class="fas fa-exclamation-triangle mr-1"></i>{{ obj.defects }} дефектов</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main :class="['pt-20', !sidebarCollapsed ? 'lg:ml-[350px]' : '']">
+            <!-- Dashboard View -->
+            <div v-if="currentView === 'dashboard'" class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="dashboard-widget">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-gray-600">Всего объектов</h3>
+                            <i class="fas fa-building text-blue-600 text-2xl"></i>
+                        </div>
+                        <div class="stat-number">{{ objects.length }}</div>
+                        <p class="text-sm text-gray-500 mt-2">в Москве и МО</p>
+                    </div>
+                    
+                    <div class="dashboard-widget">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-gray-600">Открытые дефекты</h3>
+                            <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
+                        </div>
+                        <div class="stat-number text-red-600">{{ totalDefects }}</div>
+                        <p class="text-sm text-gray-500 mt-2">{{ criticalDefects }} критических</p>
+                    </div>
+                    
+                    <div class="dashboard-widget">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-gray-600">Просроченные задачи</h3>
+                            <i class="fas fa-clock text-orange-600 text-2xl"></i>
+                        </div>
+                        <div class="stat-number text-orange-600">{{ overdueTasks }}</div>
+                        <p class="text-sm text-gray-500 mt-2">требуют внимания</p>
+                    </div>
+                    
+                    <div class="dashboard-widget">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-gray-600">Истекает гарантия</h3>
+                            <i class="fas fa-shield-alt text-green-600 text-2xl"></i>
+                        </div>
+                        <div class="stat-number text-green-600">{{ expiringWarranty }}</div>
+                        <p class="text-sm text-gray-500 mt-2">в ближайшие 30 дней</p>
+                    </div>
+                </div>
+                
+                <!-- Charts placeholder -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="dashboard-widget">
+                        <h3 class="font-bold text-gray-800 mb-4">Динамика дефектов</h3>
+                        <div class="h-64 bg-gray-100 rounded flex items-center justify-center">
+                            <p class="text-gray-500">График будет здесь</p>
+                        </div>
+                    </div>
+                    
+                    <div class="dashboard-widget">
+                        <h3 class="font-bold text-gray-800 mb-4">Загрузка подрядчиков</h3>
+                        <div class="h-64 bg-gray-100 rounded flex items-center justify-center">
+                            <p class="text-gray-500">Диаграмма будет здесь</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Map View -->
+            <div v-if="currentView === 'map'" class="map-container" id="map"></div>
+            
+            <!-- Field Reports View -->
+            <div v-if="currentView === 'reports'" class="p-6">
+                <div class="dashboard-widget max-w-4xl mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Полевой отчёт</h2>
+                    
+                    <form @submit.prevent="submitReport" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Объект *</label>
+                            <select v-model="reportForm.objectId" required class="w-full p-3 border rounded">
+                                <option value="">Выберите объект</option>
+                                <option v-for="obj in objects" :key="obj.id" :value="obj.id">
+                                    {{ obj.name }}
+                                </option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Тип проблемы *</label>
+                            <select v-model="reportForm.type" required class="w-full p-3 border rounded">
+                                <option value="">Выберите тип</option>
+                                <option value="defect">Дефект</option>
+                                <option value="maintenance">Плановое ТО</option>
+                                <option value="inspection">Осмотр</option>
+                                <option value="emergency">Аварийная ситуация</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Описание *</label>
+                            <textarea v-model="reportForm.description" required rows="4" 
+                                      class="w-full p-3 border rounded" 
+                                      placeholder="Подробно опишите проблему..."></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Фото/Видео</label>
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                <i class="fas fa-camera text-4xl text-gray-400 mb-2"></i>
+                                <p class="text-gray-500">Перетащите файлы или кликните для загрузки</p>
+                                <input type="file" multiple accept="image/*,video/*" class="mt-2">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">Геолокация</label>
+                            <div class="flex items-center space-x-2">
+                                <button type="button" @click="getCurrentLocation" 
+                                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                                    <i class="fas fa-location-arrow mr-2"></i>Текущая позиция
+                                </button>
+                                <span v-if="reportForm.latitude" class="text-sm text-gray-600">
+                                    {{ reportForm.latitude }}, {{ reportForm.longitude }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-4 pt-4">
+                            <button type="submit" class="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium">
+                                <i class="fas fa-save mr-2"></i>Сохранить отчёт
+                            </button>
+                            <button type="button" @click="generateQR" 
+                                    class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium">
+                                <i class="fas fa-qrcode mr-2"></i>QR-код
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Tasks View -->
+            <div v-if="currentView === 'tasks'" class="p-6">
+                <div class="dashboard-widget">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Задачи и регламенты</h2>
+                    
+                    <div class="space-y-4">
+                        <div v-for="task in tasks" :key="task.id" 
+                             class="p-4 border rounded-lg hover:shadow-md transition-shadow">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="font-semibold text-gray-800">{{ task.title }}</h3>
+                                <span :class="['status-badge', getPriorityClass(task.priority)]">
+                                    {{ getPriorityText(task.priority) }}
+                                </span>
+                            </div>
+                            <p class="text-gray-600 text-sm mb-2">{{ task.description }}</p>
+                            <div class="flex justify-between items-center text-sm text-gray-500">
+                                <span><i class="fas fa-calendar mr-1"></i>До: {{ task.dueDate }}</span>
+                                <span><i class="fas fa-user mr-1"></i>{{ task.assignee }}</span>
+                                <span><i class="fas fa-building mr-1"></i>{{ task.objectName }}</span>
+                            </div>
+                            <div class="mt-3 flex space-x-2">
+                                <button class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                                    Начать
+                                </button>
+                                <button class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300">
+                                    Отложить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Object Detail Modal -->
+        <div v-if="selectedObject" class="modal-overlay" @click.self="selectedObject = null">
+            <div class="modal-content">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">{{ selectedObject.name }}</h2>
+                    <button @click="selectedObject = null" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <h3 class="font-semibold text-gray-700 mb-2">Основная информация</h3>
+                            <p class="text-gray-600 mb-2"><strong>Адрес:</strong> {{ selectedObject.address }}</p>
+                            <p class="text-gray-600 mb-2"><strong>Тип:</strong> {{ getTypeText(selectedObject.type) }}</p>
+                            <p class="text-gray-600 mb-2"><strong>Статус:</strong> 
+                                <span :class="['status-badge', getStatusClass(selectedObject.status)]">
+                                    {{ getStatusText(selectedObject.status) }}
+                                </span>
+                            </p>
+                            <p class="text-gray-600 mb-2"><strong>Дата сдачи:</strong> {{ selectedObject.completionDate }}</p>
+                            <p class="text-gray-600"><strong>Ответственный:</strong> {{ selectedObject.responsible }}</p>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-semibold text-gray-700 mb-2">Метрики</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-blue-50 p-3 rounded">
+                                    <div class="text-2xl font-bold text-blue-600">{{ selectedObject.defects }}</div>
+                                    <div class="text-sm text-gray-600">Дефектов</div>
+                                </div>
+                                <div class="bg-green-50 p-3 rounded">
+                                    <div class="text-2xl font-bold text-green-600">{{ selectedObject.tasks }}</div>
+                                    <div class="text-sm text-gray-600">Задач</div>
+                                </div>
+                                <div class="bg-orange-50 p-3 rounded">
+                                    <div class="text-2xl font-bold text-orange-600">{{ selectedObject.documents }}</div>
+                                    <div class="text-sm text-gray-600">Документов</div>
+                                </div>
+                                <div class="bg-purple-50 p-3 rounded">
+                                    <div class="text-2xl font-bold text-purple-600">{{ selectedObject.area }} м²</div>
+                                    <div class="text-sm text-gray-600">Площадь</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="font-semibold text-gray-700 mb-3">Документация</h3>
+                        <div class="space-y-2">
+                            <div v-for="doc in selectedObject.documentsList" :key="doc.id" 
+                                 class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                <div class="flex items-center space-x-3">
+                                    <i :class="['fas', doc.icon, 'text-blue-600']"></i>
+                                    <span class="text-gray-700">{{ doc.name }}</span>
+                                </div>
+                                <button class="text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold text-gray-700 mb-3">Последние дефекты</h3>
+                        <div class="space-y-2">
+                            <div v-for="defect in selectedObject.recentDefects" :key="defect.id" 
+                                 class="p-3 border-l-4 border-red-500 bg-red-50 rounded">
+                                <div class="flex justify-between items-start">
+                                    <span class="font-medium text-gray-800">{{ defect.title }}</span>
+                                    <span class="text-xs text-gray-500">{{ defect.date }}</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1">{{ defect.description }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- QR Code Modal -->
+        <div v-if="showQRModal" class="modal-overlay" @click.self="showQRModal = false">
+            <div class="modal-content max-w-md">
+                <div class="p-6 text-center">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">QR-код отчёта</h3>
+                    <div class="bg-white p-4 inline-block rounded-lg">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=SampleReport" 
+                             alt="QR Code" class="w-48 h-48">
+                    </div>
+                    <p class="text-gray-600 mt-4">Отсканируйте для быстрого доступа к отчёту</p>
+                    <button @click="showQRModal = false" 
+                            class="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    currentView: 'map',
+                    sidebarCollapsed: false,
+                    mobileSidebarActive: false,
+                    selectedObject: null,
+                    showQRModal: false,
+                    currentRoleId: 1,
+                    mapInstance: null,
+                    
+                    roles: [
+                        { id: 1, name: 'Администратор' },
+                        { id: 2, name: 'Руководитель проекта' },
+                        { id: 3, name: 'Инженер ОКС' },
+                        { id: 4, name: 'Инженер эксплуатации' },
+                        { id: 5, name: 'Подрядчик' }
+                    ],
+                    
+                    currentUser: {
+                        name: 'Иван Петров',
+                        role: 'Администратор'
+                    },
+                    
+                    filters: {
+                        status: '',
+                        type: ''
+                    },
+                    
+                    reportForm: {
+                        objectId: '',
+                        type: '',
+                        description: '',
+                        latitude: null,
+                        longitude: null
+                    },
+                    
+                    objects: [
+                        {
+                            id: 1,
+                            name: 'ЖК "Северное Сияние"',
+                            address: 'Москва, ул. Академика Королёва, 15',
+                            type: 'residential',
+                            status: 'construction',
+                            completionDate: '2024-12-15',
+                            responsible: 'Алексей Смирнов',
+                            defects: 12,
+                            tasks: 8,
+                            documents: 24,
+                            area: 45000,
+                            coordinates: [55.8267, 37.6176],
+                            documentsList: [
+                                { id: 1, name: 'Проектная документация', icon: 'fa-file-pdf' },
+                                { id: 2, name: 'Исполнительные схемы', icon: 'fa-drawing' },
+                                { id: 3, name: 'Паспорта оборудования', icon: 'fa-certificate' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Трещина в фундаменте', description: 'Обнаружена при осмотре', date: '2024-01-15' },
+                                { id: 2, title: 'Протечка кровли', description: 'Требуется ремонт', date: '2024-01-14' }
+                            ]
+                        },
+                        {
+                            id: 2,
+                            name: 'ТЦ "Галактика"',
+                            address: 'Москва, Ленинградский проспект, 80',
+                            type: 'commercial',
+                            status: 'completed',
+                            completionDate: '2023-11-20',
+                            responsible: 'Мария Иванова',
+                            defects: 3,
+                            tasks: 5,
+                            documents: 18,
+                            area: 28000,
+                            coordinates: [55.8144, 37.5194],
+                            documentsList: [
+                                { id: 1, name: 'Акт ввода в эксплуатацию', icon: 'fa-file-signature' },
+                                { id: 2, name: 'Сертификаты безопасности', icon: 'fa-shield-alt' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Неисправность лифта', description: 'Замена деталей', date: '2024-01-10' }
+                            ]
+                        },
+                        {
+                            id: 3,
+                            name: 'Бизнес-парк "Вершина"',
+                            address: 'Москва, Кутузовский проспект, 42',
+                            type: 'commercial',
+                            status: 'warranty',
+                            completionDate: '2023-06-15',
+                            responsible: 'Дмитрий Козлов',
+                            defects: 7,
+                            tasks: 12,
+                            documents: 32,
+                            area: 52000,
+                            coordinates: [55.7415, 37.5194],
+                            documentsList: [
+                                { id: 1, name: 'Гарантийные обязательства', icon: 'fa-file-contract' },
+                                { id: 2, name: 'Журнал работ', icon: 'fa-book' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Проблемы с вентиляцией', description: 'Настройка системы', date: '2024-01-12' }
+                            ]
+                        },
+                        {
+                            id: 4,
+                            name: 'Завод "Технополис"',
+                            address: 'Московская обл., г. Химки, ул. Заводская, 5',
+                            type: 'industrial',
+                            status: 'operation',
+                            completionDate: '2022-09-10',
+                            responsible: 'Елена Морозова',
+                            defects: 2,
+                            tasks: 6,
+                            documents: 45,
+                            area: 78000,
+                            coordinates: [55.8970, 37.4297],
+                            documentsList: [
+                                { id: 1, name: 'Технический паспорт', icon: 'fa-id-card' },
+                                { id: 2, name: 'Регламент ТО', icon: 'fa-tools' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Износ оборудования', description: 'Плановая замена', date: '2024-01-08' }
+                            ]
+                        },
+                        {
+                            id: 5,
+                            name: 'ЖК "Южный Берег"',
+                            address: 'Московская обл., г. Подольск, ул. Речная, 20',
+                            type: 'residential',
+                            status: 'emergency',
+                            completionDate: '2021-05-20',
+                            responsible: 'Сергей Волков',
+                            defects: 25,
+                            tasks: 18,
+                            documents: 28,
+                            area: 38000,
+                            coordinates: [55.4297, 37.5447],
+                            documentsList: [
+                                { id: 1, name: 'Акт обследования', icon: 'fa-clipboard-check' },
+                                { id: 2, name: 'Дефектная ведомость', icon: 'fa-list-alt' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Обрушение фасада', description: 'Срочный ремонт', date: '2024-01-16' },
+                                { id: 2, title: 'Прорыв трубы', description: 'Аварийная ситуация', date: '2024-01-15' }
+                            ]
+                        },
+                        {
+                            id: 6,
+                            name: 'Мост через Москву-реку',
+                            address: 'Москва, МКАД, 45 км',
+                            type: 'infrastructure',
+                            status: 'construction',
+                            completionDate: '2025-06-30',
+                            responsible: 'Андрей Новиков',
+                            defects: 8,
+                            tasks: 15,
+                            documents: 56,
+                            area: 12000,
+                            coordinates: [55.6667, 37.4333],
+                            documentsList: [
+                                { id: 1, name: 'Проект моста', icon: 'fa-drafting-compass' },
+                                { id: 2, name: 'Разрешение на строительство', icon: 'fa-permit' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Смещение опоры', description: 'Требуется корректировка', date: '2024-01-13' }
+                            ]
+                        },
+                        {
+                            id: 7,
+                            name: 'Школа №1250',
+                            address: 'Москва, ул. Профсоюзная, 95',
+                            type: 'infrastructure',
+                            status: 'warranty',
+                            completionDate: '2023-08-25',
+                            responsible: 'Ольга Соколова',
+                            defects: 4,
+                            tasks: 7,
+                            documents: 22,
+                            area: 8500,
+                            coordinates: [55.6615, 37.5877],
+                            documentsList: [
+                                { id: 1, name: 'Акт приёмки', icon: 'fa-check-circle' },
+                                { id: 2, name: 'Санитарный паспорт', icon: 'fa-hand-holding-medical' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Неисправность отопления', description: 'Замена радиатора', date: '2024-01-11' }
+                            ]
+                        },
+                        {
+                            id: 8,
+                            name: 'Логистический центр "Восток"',
+                            address: 'Московская обл., г. Балашиха, ш. Энтузиастов, 100',
+                            type: 'industrial',
+                            status: 'operation',
+                            completionDate: '2022-03-15',
+                            responsible: 'Игорь Лебедев',
+                            defects: 1,
+                            tasks: 4,
+                            documents: 38,
+                            area: 65000,
+                            coordinates: [55.8094, 37.9378],
+                            documentsList: [
+                                { id: 1, name: 'Эксплуатационная документация', icon: 'fa-book-open' },
+                                { id: 2, name: 'Сертификат пожарной безопасности', icon: 'fa-fire-extinguisher' }
+                            ],
+                            recentDefects: [
+                                { id: 1, title: 'Износ пола', description: 'Косметический ремонт', date: '2024-01-09' }
+                            ]
+                        }
+                    ],
+                    
+                    tasks: [
+                        {
+                            id: 1,
+                            title: 'Устранение протечки кровли',
+                            description: 'Заменить повреждённый участок кровельного покрытия',
+                            priority: 'high',
+                            dueDate: '2024-01-20',
+                            assignee: 'ООО "СтройМастер"',
+                            objectName: 'ЖК "Северное Сияние"'
+                        },
+                        {
+                            id: 2,
+                            title: 'Плановое ТО лифтового оборудования',
+                            description: 'Ежемесячное техническое обслуживание всех лифтов',
+                            priority: 'medium',
+                            dueDate: '2024-01-25',
+                            assignee: 'ЗАО "ЛифтСервис"',
+                            objectName: 'ТЦ "Галактика"'
+                        },
+                        {
+                            id: 3,
+                            title: 'Проверка пожарной сигнализации',
+                            description: 'Квартальная проверка систем пожаротушения',
+                            priority: 'high',
+                            dueDate: '2024-01-18',
+                            assignee: 'ООО "ПожБез"',
+                            objectName: 'Бизнес-парк "Вершина"'
+                        },
+                        {
+                            id: 4,
+                            title: 'Ремонт фасадной панели',
+                            description: 'Восстановление повреждённой фасадной системы',
+                            priority: 'critical',
+                            dueDate: '2024-01-17',
+                            assignee: 'ИП Петров А.В.',
+                            objectName: 'ЖК "Южный Берег"'
+                        }
+                    ]
+                };
+            },
+            
+            computed: {
+                filteredObjects() {
+                    return this.objects.filter(obj => {
+                        if (this.filters.status && obj.status !== this.filters.status) return false;
+                        if (this.filters.type && obj.type !== this.filters.type) return false;
+                        return true;
+                    });
+                },
+                
+                totalDefects() {
+                    return this.objects.reduce((sum, obj) => sum + obj.defects, 0);
+                },
+                
+                criticalDefects() {
+                    return this.objects.filter(obj => obj.status === 'emergency').reduce((sum, obj) => sum + obj.defects, 0);
+                },
+                
+                overdueTasks() {
+                    return Math.floor(Math.random() * 5) + 2;
+                },
+                
+                expiringWarranty() {
+                    return this.objects.filter(obj => obj.status === 'warranty').length;
+                }
+            },
+            
+            methods: {
+                toggleSidebar() {
+                    if (window.innerWidth < 1024) {
+                        this.mobileSidebarActive = !this.mobileSidebarActive;
+                    } else {
+                        this.sidebarCollapsed = !this.sidebarCollapsed;
+                    }
+                },
+                
+                switchRole() {
+                    const role = this.roles.find(r => r.id === this.currentRoleId);
+                    this.currentUser.role = role.name;
+                },
+                
+                selectObject(obj) {
+                    this.selectedObject = obj;
+                    if (this.mapInstance && ymaps3) {
+                        this.mapInstance.setCenter(obj.coordinates, 15);
+                    }
+                    if (window.innerWidth < 1024) {
+                        this.mobileSidebarActive = false;
+                    }
+                },
+                
+                getStatusClass(status) {
+                    const classes = {
+                        construction: 'status-construction',
+                        completed: 'status-completed',
+                        warranty: 'status-warranty',
+                        operation: 'status-operation',
+                        emergency: 'status-emergency'
+                    };
+                    return classes[status] || '';
+                },
+                
+                getStatusText(status) {
+                    const texts = {
+                        construction: 'Строится',
+                        completed: 'Сдан',
+                        warranty: 'На гарантии',
+                        operation: 'Эксплуатация',
+                        emergency: 'Аварийный'
+                    };
+                    return texts[status] || status;
+                },
+                
+                getTypeText(type) {
+                    const texts = {
+                        residential: 'Жилой комплекс',
+                        commercial: 'Торговый центр',
+                        industrial: 'Промышленный объект',
+                        infrastructure: 'Инфраструктура'
+                    };
+                    return texts[type] || type;
+                },
+                
+                getPriorityClass(priority) {
+                    const classes = {
+                        low: 'bg-gray-100 text-gray-700',
+                        medium: 'bg-blue-100 text-blue-700',
+                        high: 'bg-orange-100 text-orange-700',
+                        critical: 'bg-red-100 text-red-700'
+                    };
+                    return classes[priority] || '';
+                },
+                
+                getPriorityText(priority) {
+                    const texts = {
+                        low: 'Низкий',
+                        medium: 'Средний',
+                        high: 'Высокий',
+                        critical: 'Критический'
+                    };
+                    return texts[priority] || priority;
+                },
+                
+                getCurrentLocation() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(position => {
+                            this.reportForm.latitude = position.coords.latitude.toFixed(6);
+                            this.reportForm.longitude = position.coords.longitude.toFixed(6);
+                        });
+                    } else {
+                        alert('Геолокация не поддерживается вашим браузером');
+                    }
+                },
+                
+                submitReport() {
+                    alert('Отчёт успешно сохранён! Номер: #' + Math.floor(Math.random() * 10000));
+                    this.reportForm = { objectId: '', type: '', description: '', latitude: null, longitude: null };
+                },
+                
+                generateQR() {
+                    this.showQRModal = true;
+                },
+                
+                initMap() {
+                    // Инициализация карты после монтирования компонента
+                    setTimeout(() => {
+                        if (ymaps3 && document.getElementById('map')) {
+                            this.mapInstance = ymaps3.import('@yandex/ymaps3-default-ui-theme');
+                            
+                            this.mapInstance.init({
+                                location: {
+                                    center: [55.751244, 37.618423], // Москва
+                                    zoom: 10
+                                }
+                            }).then(map => {
+                                this.mapInstance = map;
+                                
+                                // Добавление маркеров объектов
+                                this.objects.forEach(obj => {
+                                    const marker = new ymaps3.YMapMarker({
+                                        coordinates: obj.coordinates,
+                                        properties: {
+                                            hintContent: obj.name
+                                        }
+                                    });
+                                    
+                                    map.add(marker);
+                                });
+                            });
+                        }
+                    }, 1000);
+                }
+            },
+            
+            mounted() {
+                // Переключение представлений по кнопкам (можно добавить в хедер)
+                window.switchView = (view) => {
+                    this.currentView = view;
+                    if (view === 'map') {
+                        this.$nextTick(() => {
+                            this.initMap();
+                        });
+                    }
+                };
+                
+                // Добавляем навигацию в хедер программно
+                setTimeout(() => {
+                    const header = document.querySelector('header .container');
+                    const nav = document.createElement('nav');
+                    nav.className = 'hidden lg:flex space-x-4';
+                    nav.innerHTML = `
+                        <button onclick="switchView('dashboard')" class="text-white hover:text-blue-200 px-3 py-2 rounded ${this.currentView === 'dashboard' ? 'bg-blue-700' : ''}">
+                            <i class="fas fa-chart-line mr-1"></i>Дашборд
+                        </button>
+                        <button onclick="switchView('map')" class="text-white hover:text-blue-200 px-3 py-2 rounded ${this.currentView === 'map' ? 'bg-blue-700' : ''}">
+                            <i class="fas fa-map mr-1"></i>Карта
+                        </button>
+                        <button onclick="switchView('reports')" class="text-white hover:text-blue-200 px-3 py-2 rounded ${this.currentView === 'reports' ? 'bg-blue-700' : ''}">
+                            <i class="fas fa-camera mr-1"></i>Отчёты
+                        </button>
+                        <button onclick="switchView('tasks')" class="text-white hover:text-blue-200 px-3 py-2 rounded ${this.currentView === 'tasks' ? 'bg-blue-700' : ''}">
+                            <i class="fas fa-tasks mr-1"></i>Задачи
+                        </button>
+                    `;
+                    header.insertBefore(nav, header.lastElementChild);
+                }, 100);
+                
+                if (this.currentView === 'map') {
+                    this.initMap();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

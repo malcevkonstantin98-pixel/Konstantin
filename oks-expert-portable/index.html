@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ОКС Эксперт - Система управления объектами</title>
+    <script src="https://api-maps.yandex.ru/3.0/?apikey=&lang=ru_RU"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f5f7fa; color: #333; height: 100vh; overflow: hidden; }
+        .app-container { display: flex; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 280px; background: #2c3e50; color: white; display: flex; flex-direction: column; transition: transform 0.3s ease; }
+        .sidebar.collapsed { transform: translateX(-280px); position: absolute; height: 100%; z-index: 1000; }
+        .logo { padding: 20px; font-size: 20px; font-weight: bold; border-bottom: 1px solid #34495e; background: #1a252f; }
+        .logo span { color: #3498db; }
+        .nav-menu { flex: 1; padding: 20px 0; }
+        .nav-item { padding: 15px 20px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 10px; }
+        .nav-item:hover, .nav-item.active { background: #34495e; border-left: 4px solid #3498db; }
+        .nav-icon { width: 20px; text-align: center; }
+        .user-info { padding: 15px 20px; border-top: 1px solid #34495e; background: #1a252f; font-size: 14px; }
+        
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: white; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; color: #2c3e50; }
+        .toggle-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #2c3e50; }
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; }
+        
+        /* Dashboard Widgets */
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .widget { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .widget-title { font-size: 14px; color: #7f8c8d; margin-bottom: 10px; }
+        .widget-value { font-size: 32px; font-weight: bold; color: #2c3e50; }
+        .widget-change { font-size: 12px; margin-top: 5px; }
+        .widget-change.positive { color: #27ae60; }
+        .widget-change.negative { color: #e74c3c; }
+        
+        /* Map Container */
+        .map-container { height: calc(100vh - 140px); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        #map { width: 100%; height: 100%; }
+        
+        /* Cards */
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ecf0f1; }
+        .card-title { font-size: 18px; font-weight: bold; color: #2c3e50; }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .status-building { background: #3498db; color: white; }
+        .status-completed { background: #27ae60; color: white; }
+        .status-warranty { background: #f39c12; color: white; }
+        .status-operation { background: #9b59b6; color: white; }
+        .status-emergency { background: #e74c3c; color: white; }
+        
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ecf0f1; }
+        .data-table th { background: #f8f9fa; font-weight: 600; color: #7f8c8d; }
+        .data-table tr:hover { background: #f8f9fa; }
+        
+        /* Forms */
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; margin-bottom: 5px; font-weight: 600; color: #2c3e50; }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-textarea { min-height: 100px; resize: vertical; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-danger { background: #e74c3c; color: white; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { padding: 20px; border-bottom: 1px solid #ecf0f1; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; }
+        .modal-footer { padding: 20px; border-top: 1px solid #ecf0f1; display: flex; justify-content: flex-end; gap: 10px; }
+        .close-modal { background: none; border: none; font-size: 24px; cursor: pointer; color: #7f8c8d; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { position: absolute; transform: translateX(-280px); }
+            .sidebar.active { transform: translateX(0); }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+        
+        /* Utility */
+        .hidden { display: none; }
+        .text-center { text-align: center; }
+        .mt-20 { margin-top: 20px; }
+        .flex { display: flex; }
+        .gap-10 { gap: 10px; }
+        .justify-between { justify-content: space-between; }
+        .items-center { align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">ОКС <span>Эксперт</span></div>
+            <nav class="nav-menu">
+                <div class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span>Дашборд</span>
+                </div>
+                <div class="nav-item" data-view="map">
+                    <span class="nav-icon">🗺️</span>
+                    <span>Карта объектов</span>
+                </div>
+                <div class="nav-item" data-view="objects">
+                    <span class="nav-icon">🏢</span>
+                    <span>Объекты</span>
+                </div>
+                <div class="nav-item" data-view="defects">
+                    <span class="nav-icon">⚠️</span>
+                    <span>Дефекты</span>
+                </div>
+                <div class="nav-item" data-view="tasks">
+                    <span class="nav-icon">✅</span>
+                    <span>Задачи</span>
+                </div>
+                <div class="nav-item" data-view="reports">
+                    <span class="nav-icon">📝</span>
+                    <span>Полевые отчёты</span>
+                </div>
+            </nav>
+            <div class="user-info">
+                <div><strong>Инженер ОКС</strong></div>
+                <div style="color: #95a5a6; font-size: 12px;">engineer@oks.ru</div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <button class="toggle-btn" id="toggleSidebar">☰</button>
+                <h1 id="pageTitle">Панель мониторинга</h1>
+                <div class="flex gap-10">
+                    <button class="btn btn-primary" onclick="showModal('reportModal')">+ Отчёт</button>
+                    <button class="btn btn-success" onclick="alert('Уведомления настроены')">🔔</button>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Dashboard View -->
+                <div id="dashboardView" class="view-section">
+                    <div class="dashboard-grid">
+                        <div class="widget">
+                            <div class="widget-title">Всего объектов</div>
+                            <div class="widget-value" id="totalObjects">0</div>
+                            <div class="widget-change positive">+2 за месяц</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-title">На строительстве</div>
+                            <div class="widget-value" id="buildingObjects">0</div>
+                            <div class="widget-change">Активные работы</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-title">Открытые дефекты</div>
+                            <div class="widget-value" id="openDefects">0</div>
+                            <div class="widget-change negative" id="criticalDefects">0 критических</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-title">Просроченные задачи</div>
+                            <div class="widget-value" id="overdueTasks">0</div>
+                            <div class="widget-change negative">Требуют внимания</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-title">Истекают гарантии (30 дней)</div>
+                            <div class="widget-value" id="expiringWarranty">0</div>
+                            <div class="widget-change">Плановая проверка</div>
+                        </div>
+                        <div class="widget">
+                            <div class="widget-title">Загрузка подрядчиков</div>
+                            <div class="widget-value">78%</div>
+                            <div class="widget-change positive">В норме</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Последние события</div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Объект</th>
+                                    <th>Событие</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="eventsTable">
+                                <!-- Events will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Map View -->
+                <div id="mapView" class="view-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Карта объектов Москвы и МО</div>
+                            <div class="flex gap-10">
+                                <select class="form-select" style="width: auto;" onchange="filterMapObjects(this.value)">
+                                    <option value="all">Все статусы</option>
+                                    <option value="building">Строится</option>
+                                    <option value="completed">Сдан</option>
+                                    <option value="warranty">На гарантии</option>
+                                    <option value="operation">Эксплуатация</option>
+                                    <option value="emergency">Аварийный</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="map-container">
+                            <div id="map"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Objects View -->
+                <div id="objectsView" class="view-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Реестр объектов</div>
+                            <button class="btn btn-primary" onclick="showModal('objectModal')">+ Добавить объект</button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Адрес</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Ответственный</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="objectsTable">
+                                <!-- Objects will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Defects View -->
+                <div id="defectsView" class="view-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Журнал дефектов</div>
+                            <button class="btn btn-danger" onclick="showModal('defectModal')">+ Зарегистрировать дефект</button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Объект</th>
+                                    <th>Описание</th>
+                                    <th>Приоритет</th>
+                                    <th>Статус</th>
+                                    <th>Дата создания</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="defectsTable">
+                                <!-- Defects will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tasks View -->
+                <div id="tasksView" class="view-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">План работ и задачи</div>
+                            <button class="btn btn-primary" onclick="showModal('taskModal')">+ Создать задачу</button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Объект</th>
+                                    <th>Исполнитель</th>
+                                    <th>Срок</th>
+                                    <th>Приоритет</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasksTable">
+                                <!-- Tasks will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Reports View -->
+                <div id="reportsView" class="view-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Полевые отчёты</div>
+                            <button class="btn btn-primary" onclick="showModal('reportModal')">+ Новый отчёт</button>
+                        </div>
+                        <div style="padding: 20px; text-align: center; color: #7f8c8d;">
+                            <p>📱 Мобильная версия оптимизирована для работы в поле</p>
+                            <p>Используйте кнопку "+ Новый отчёт" для создания полевого отчёта с фото и геолокацией</p>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Объект</th>
+                                    <th>Автор</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportsTable">
+                                <!-- Reports will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Object Modal -->
+    <div class="modal-overlay" id="objectModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Карточка объекта</h3>
+                <button class="close-modal" onclick="closeModal('objectModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Название объекта</label>
+                    <input type="text" class="form-input" placeholder="Например: ЖК Северное Сияние">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Адрес</label>
+                    <input type="text" class="form-input" placeholder="Москва, ул. Примерная, д. 1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип объекта</label>
+                    <select class="form-select">
+                        <option>Жилой комплекс</option>
+                        <option>Торговый центр</option>
+                        <option>Офисное здание</option>
+                        <option>Производственное помещение</option>
+                        <option>Инфраструктура</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Статус</label>
+                    <select class="form-select">
+                        <option value="building">Строится</option>
+                        <option value="completed">Сдан</option>
+                        <option value="warranty">На гарантии</option>
+                        <option value="operation">Эксплуатация</option>
+                        <option value="emergency">Аварийный</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Координаты (широта, долгота)</label>
+                    <input type="text" class="form-input" placeholder="55.7558, 37.6173">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Ответственный</label>
+                    <input type="text" class="form-input" placeholder="ФИО ответственного">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('objectModal')">Отмена</button>
+                <button class="btn btn-primary" onclick="saveObject()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Defect Modal -->
+    <div class="modal-overlay" id="defectModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Регистрация дефекта</h3>
+                <button class="close-modal" onclick="closeModal('defectModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Объект</label>
+                    <select class="form-select" id="defectObjectSelect">
+                        <!-- Options will be loaded -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Описание дефекта</label>
+                    <textarea class="form-textarea" placeholder="Подробное описание проблемы..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Приоритет</label>
+                    <select class="form-select">
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                        <option value="critical">Критический</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Фото/видео</label>
+                    <input type="file" class="form-input" accept="image/*,video/*" multiple>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('defectModal')">Отмена</button>
+                <button class="btn btn-danger" onclick="saveDefect()">Зарегистрировать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Создание задачи</h3>
+                <button class="close-modal" onclick="closeModal('taskModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Название задачи</label>
+                    <input type="text" class="form-input" placeholder="Например: Провести ТО вентиляции">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Объект</label>
+                    <select class="form-select" id="taskObjectSelect">
+                        <!-- Options will be loaded -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Исполнитель</label>
+                    <input type="text" class="form-input" placeholder="ФИО или название организации">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Срок выполнения</label>
+                    <input type="date" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Приоритет</label>
+                    <select class="form-select">
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('taskModal')">Отмена</button>
+                <button class="btn btn-primary" onclick="saveTask()">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal-overlay" id="reportModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Полевой отчёт</h3>
+                <button class="close-modal" onclick="closeModal('reportModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Объект</label>
+                    <select class="form-select" id="reportObjectSelect">
+                        <!-- Options will be loaded -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип отчёта</label>
+                    <select class="form-select">
+                        <option>Плановый осмотр</option>
+                        <option>Внеплановая проверка</option>
+                        <option>Акт скрытых работ</option>
+                        <option>Фиксация дефектов</option>
+                        <option>Приёмка работ</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-textarea" placeholder="Детали осмотра, выявленные замечания..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Фото/видео материалы</label>
+                    <input type="file" class="form-input" accept="image/*,video/*" multiple>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Геолокация</label>
+                    <input type="text" class="form-input" id="reportLocation" placeholder="Будет определена автоматически" readonly>
+                    <button class="btn btn-primary mt-20" onclick="getLocation()">📍 Определить местоположение</button>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Голосовая заметка</label>
+                    <button class="btn" onclick="alert('Голосовой ввод будет доступен в мобильной версии')">🎤 Записать</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('reportModal')">Черновик</button>
+                <button class="btn btn-success" onclick="saveReport()">Отправить отчёт</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === ДАННЫЕ ===
+        const objects = [
+            { id: 1, name: "ЖК Северное Сияние", address: "Москва, ул. Академика Королева, 12", type: "Жилой комплекс", status: "building", lat: 55.8223, lon: 37.6389, responsible: "Иванов П.С." },
+            { id: 2, name: "ТЦ Плаза", address: "Москва, Кутузовский пр., 45", type: "Торговый центр", status: "operation", lat: 55.7415, lon: 37.5336, responsible: "Петров А.М." },
+            { id: 3, name: "БЦ Белая Площадь", address: "Москва, ул. Лесная, 5", type: "Офисное здание", status: "warranty", lat: 55.7789, lon: 37.6055, responsible: "Сидоров В.К." },
+            { id: 4, name: "Школа №1234", address: "Москва, ул. Профсоюзная, 78", type: "Инфраструктура", status: "completed", lat: 55.6654, lon: 37.5789, responsible: "Козлов Н.Н." },
+            { id: 5, name: "Складской комплекс Восток", address: "МО, г. Балашиха, ш. Энтузиастов, 10", type: "Производственное помещение", status: "operation", lat: 55.7964, lon: 37.9378, responsible: "Морозов Д.А." },
+            { id: 6, name: "ЖК Зелёный квартал", address: "МО, г. Химки, ул. Московская, 25", type: "Жилой комплекс", status: "building", lat: 55.8970, lon: 37.4296, responsible: "Иванов П.С." },
+            { id: 7, name: "Поликлиника №5", address: "Москва, ул. Садовая, 15", type: "Инфраструктура", status: "emergency", lat: 55.7558, lon: 37.6173, responsible: "Новиков С.П." },
+            { id: 8, name: "Паркинг Многоуровневый", address: "Москва, пр. Мира, 102", type: "Инфраструктура", status: "completed", lat: 55.8012, lon: 37.6456, responsible: "Петров А.М." }
+        ];
+
+        const defects = [
+            { id: 101, objectId: 1, description: "Трещина в несущей стене 3 этажа", priority: "critical", status: "open", date: "2025-01-10" },
+            { id: 102, objectId: 3, description: "Протечка кровли в секции Б", priority: "high", status: "open", date: "2025-01-12" },
+            { id: 103, objectId: 7, description: "Неисправность системы вентиляции", priority: "critical", status: "in_progress", date: "2025-01-08" },
+            { id: 104, objectId: 2, description: "Повреждение напольного покрытия в ТЗ", priority: "medium", status: "open", date: "2025-01-14" },
+            { id: 105, objectId: 5, description: "Не работает освещение на складе 2", priority: "low", status: "closed", date: "2025-01-05" }
+        ];
+
+        const tasks = [
+            { id: 201, title: "Провести ТО лифтового оборудования", objectId: 1, executor: "ООО ЛифтСервис", deadline: "2025-01-25", priority: "high", status: "in_progress" },
+            { id: 202, title: "Устранить протечку кровли", objectId: 3, executor: "СтройРемонт", deadline: "2025-01-20", priority: "high", status: "in_progress" },
+            { id: 203, title: "Заменить фильтры вентиляции", objectId: 2, executor: "КлиматПро", deadline: "2025-01-18", priority: "medium", status: "pending" },
+            { id: 204, title: "Проверка пожарной сигнализации", objectId: 4, executor: "ПожБезопасность", deadline: "2025-01-15", priority: "high", status: "overdue" },
+            { id: 205, title: "Покраска фасада", objectId: 6, executor: "ФасадМастер", deadline: "2025-02-01", priority: "low", status: "pending" }
+        ];
+
+        const reports = [
+            { id: 301, date: "2025-01-14", objectId: 1, author: "Инженер ОКС", type: "Плановый осмотр", status: "completed" },
+            { id: 302, date: "2025-01-13", objectId: 7, author: "Инженер эксплуатации", type: "Внеплановая проверка", status: "completed" },
+            { id: 303, date: "2025-01-12", objectId: 3, author: "Инженер ОКС", type: "Фиксация дефектов", status: "completed" }
+        ];
+
+        let map = null;
+        let objectMarkers = [];
+
+        // === ИНИЦИАЛИЗАЦИЯ ===
+        document.addEventListener('DOMContentLoaded', function() {
+            initNavigation();
+            loadDashboard();
+            loadObjectsTable();
+            loadDefectsTable();
+            loadTasksTable();
+            loadReportsTable();
+            populateSelects();
+            
+            // Инициализация карты при переключении на вкладку
+            document.querySelector('[data-view="map"]').addEventListener('click', function() {
+                setTimeout(initMap, 100);
+            });
+        });
+
+        // === НАВИГАЦИЯ ===
+        function initNavigation() {
+            const navItems = document.querySelectorAll('.nav-item');
+            const toggleBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.getElementById('sidebar');
+
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    navItems.forEach(n => n.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const view = this.dataset.view;
+                    showView(view);
+                    
+                    // Mobile: close sidebar after selection
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('active');
+                    }
+                });
+            });
+
+            toggleBtn.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.toggle('active');
+                } else {
+                    sidebar.classList.toggle('collapsed');
+                }
+            });
+        }
+
+        function showView(viewName) {
+            const views = document.querySelectorAll('.view-section');
+            const titles = {
+                dashboard: "Панель мониторинга",
+                map: "Карта объектов",
+                objects: "Реестр объектов",
+                defects: "Журнал дефектов",
+                tasks: "План работ и задачи",
+                reports: "Полевые отчёты"
+            };
+
+            views.forEach(v => v.classList.add('hidden'));
+            document.getElementById(viewName + 'View').classList.remove('hidden');
+            document.getElementById('pageTitle').textContent = titles[viewName];
+
+            if (viewName === 'map') {
+                setTimeout(initMap, 100);
+            }
+        }
+
+        // === DASHBOARD ===
+        function loadDashboard() {
+            document.getElementById('totalObjects').textContent = objects.length;
+            document.getElementById('buildingObjects').textContent = objects.filter(o => o.status === 'building').length;
+            
+            const openDef = defects.filter(d => d.status !== 'closed');
+            document.getElementById('openDefects').textContent = openDef.length;
+            
+            const critical = openDef.filter(d => d.priority === 'critical');
+            document.getElementById('criticalDefects').textContent = `${critical.length} критических`;
+            
+            const overdue = tasks.filter(t => t.status === 'overdue');
+            document.getElementById('overdueTasks').textContent = overdue.length;
+            
+            // Expiring warranty (mock)
+            document.getElementById('expiringWarranty').textContent = objects.filter(o => o.status === 'warranty').length;
+
+            // Load events table
+            const eventsTable = document.getElementById('eventsTable');
+            const events = [
+                { date: "2025-01-14", object: "ЖК Северное Сияние", event: "Зарегистрирован дефект", status: "warning" },
+                { date: "2025-01-13", object: "Поликлиника №5", event: "Начато устранение", status: "info" },
+                { date: "2025-01-12", object: "БЦ Белая Площадь", event: "Выявлена протечка", status: "warning" },
+                { date: "2025-01-11", object: "ТЦ Плаза", event: "Завершено ТО", status: "success" },
+                { date: "2025-01-10", object: "Школа №1234", event: "Плановый осмотр", status: "info" }
+            ];
+
+            eventsTable.innerHTML = events.map(e => `
+                <tr>
+                    <td>${e.date}</td>
+                    <td>${e.object}</td>
+                    <td>${e.event}</td>
+                    <td><span class="status-badge status-${e.status === 'warning' ? 'warranty' : e.status === 'success' ? 'completed' : 'building'}">${e.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // === MAP ===
+        function initMap() {
+            if (map) return; // Already initialized
+
+            ymaps3.ready.then(() => {
+                const { YMap, YMapDefaultSchemeLayer, YMapDefaultFeaturesLayer, YMapMarker, YMapClusterer } = ymaps3;
+
+                map = new YMap(document.getElementById('map'), {
+                    location: {
+                        center: [37.6173, 55.7558],
+                        zoom: 10
+                    }
+                });
+
+                map.addChild(new YMapDefaultSchemeLayer());
+                map.addChild(new YMapDefaultFeaturesLayer());
+
+                // Add markers
+                const markers = objects.map(obj => {
+                    const color = getStatusColor(obj.status);
+                    return new YMapMarker({
+                        coordinates: [obj.lon, obj.lat],
+                        onClick: () => showObjectDetails(obj.id)
+                    }, document.createElement('div')).setProps({
+                        element: createMarkerElement(obj, color)
+                    });
+                });
+
+                // Simple clustering (manual for demo)
+                markers.forEach(marker => map.addChild(marker));
+            });
+        }
+
+        function createMarkerElement(obj, color) {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                width: 30px;
+                height: 30px;
+                background: ${color};
+                border: 3px solid white;
+                border-radius: 50%;
+                cursor: pointer;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 12px;
+            `;
+            div.textContent = obj.name.charAt(0);
+            div.title = obj.name;
+            return div;
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                building: '#3498db',
+                completed: '#27ae60',
+                warranty: '#f39c12',
+                operation: '#9b59b6',
+                emergency: '#e74c3c'
+            };
+            return colors[status] || '#95a5a6';
+        }
+
+        function filterMapObjects(status) {
+            // In full version, this would filter markers
+            alert('Фильтрация по статусу: ' + status);
+        }
+
+        function showObjectDetails(id) {
+            const obj = objects.find(o => o.id === id);
+            if (!obj) return;
+
+            alert(`Объект: ${obj.name}\nАдрес: ${obj.address}\nСтатус: ${obj.status}\nОтветственный: ${obj.responsible}`);
+        }
+
+        // === TABLES ===
+        function loadObjectsTable() {
+            const tbody = document.getElementById('objectsTable');
+            tbody.innerHTML = objects.map(obj => `
+                <tr>
+                    <td><strong>${obj.name}</strong></td>
+                    <td>${obj.address}</td>
+                    <td>${obj.type}</td>
+                    <td><span class="status-badge status-${obj.status}">${getStatusText(obj.status)}</span></td>
+                    <td>${obj.responsible}</td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 5px 10px;" onclick="showObjectDetails(${obj.id})">👁️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function loadDefectsTable() {
+            const tbody = document.getElementById('defectsTable');
+            tbody.innerHTML = defects.map(def => {
+                const obj = objects.find(o => o.id === def.objectId);
+                return `
+                    <tr>
+                        <td>#${def.id}</td>
+                        <td>${obj ? obj.name : 'Unknown'}</td>
+                        <td>${def.description}</td>
+                        <td><span class="status-badge status-${def.priority === 'critical' ? 'emergency' : def.priority === 'high' ? 'warranty' : 'building'}">${getPriorityText(def.priority)}</span></td>
+                        <td>${getStatusText(def.status)}</td>
+                        <td>${def.date}</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px;" onclick="alert('Редактирование дефекта #${def.id}')">✏️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function loadTasksTable() {
+            const tbody = document.getElementById('tasksTable');
+            tbody.innerHTML = tasks.map(task => {
+                const obj = objects.find(o => o.id === task.objectId);
+                return `
+                    <tr>
+                        <td><strong>${task.title}</strong></td>
+                        <td>${obj ? obj.name : 'Unknown'}</td>
+                        <td>${task.executor}</td>
+                        <td>${task.deadline}</td>
+                        <td><span class="status-badge status-${task.priority === 'high' ? 'warranty' : 'building'}">${getPriorityText(task.priority)}</span></td>
+                        <td><span class="status-badge status-${task.status === 'overdue' ? 'emergency' : task.status === 'in_progress' ? 'warranty' : 'building'}">${getStatusText(task.status)}</span></td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px;" onclick="alert('Управление задачей #${task.id}')">⚙️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function loadReportsTable() {
+            const tbody = document.getElementById('reportsTable');
+            tbody.innerHTML = reports.map(rep => {
+                const obj = objects.find(o => o.id === rep.objectId);
+                return `
+                    <tr>
+                        <td>${rep.date}</td>
+                        <td>${obj ? obj.name : 'Unknown'}</td>
+                        <td>${rep.author}</td>
+                        <td>${rep.type}</td>
+                        <td><span class="status-badge status-completed">${rep.status}</span></td>
+                        <td>
+                            <button class="btn btn-primary" style="padding: 5px 10px;" onclick="alert('Просмотр отчёта #${rep.id}')">📄</button>
+                            <button class="btn btn-success" style="padding: 5px 10px;" onclick="alert('Скачивание PDF')">⬇️</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function populateSelects() {
+            const selects = ['defectObjectSelect', 'taskObjectSelect', 'reportObjectSelect'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = objects.map(obj => 
+                        `<option value="${obj.id}">${obj.name}</option>`
+                    ).join('');
+                }
+            });
+        }
+
+        // === MODALS ===
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // === SAVE FUNCTIONS (MOCK) ===
+        function saveObject() {
+            alert('Объект сохранён! (Демо-режим)');
+            closeModal('objectModal');
+        }
+
+        function saveDefect() {
+            alert('Дефект зарегистрирован! (Демо-режим)');
+            closeModal('defectModal');
+        }
+
+        function saveTask() {
+            alert('Задача создана! (Демо-режим)');
+            closeModal('taskModal');
+        }
+
+        function saveReport() {
+            alert('Отчёт отправлен! (Демо-режим)');
+            closeModal('reportModal');
+        }
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        document.getElementById('reportLocation').value = 
+                            `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+                        alert('Местоположение определено!');
+                    },
+                    (error) => {
+                        alert('Не удалось определить местоположение: ' + error.message);
+                    }
+                );
+            } else {
+                alert('Геолокация не поддерживается вашим браузером');
+            }
+        }
+
+        // === HELPERS ===
+        function getStatusText(status) {
+            const texts = {
+                building: "Строится",
+                completed: "Сдан",
+                warranty: "На гарантии",
+                operation: "Эксплуатация",
+                emergency: "Аварийный",
+                open: "Открыт",
+                in_progress: "В работе",
+                closed: "Закрыт",
+                pending: "Ожидает",
+                overdue: "Просрочен"
+            };
+            return texts[status] || status;
+        }
+
+        function getPriorityText(priority) {
+            const texts = {
+                low: "Низкий",
+                medium: "Средний",
+                high: "Высокий",
+                critical: "Критический"
+            };
+            return texts[priority] || priority;
+        }
+
+        // PWA Install Prompt (optional)
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+        });
+    </script>
+</body>
+</html>

@@ -1,13 +1,15 @@
 ```
-# Python
+# Compressed archives
+*.tar.gz
+
+# Dependencies
+node_modules/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Logs and temp files
-*.log
-*.tmp
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
 
 # Environment
 .env
@@ -17,18 +19,15 @@ __pycache__/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
+*.tmp
 
-# Dependencies
-.venv/
-venv/
-node_modules/
+# Logs
+*.log
 
 # Build artifacts
 dist/
 build/
 target/
-
-# OS generated files
-.DS_Store
-Thumbs.db
 ```
